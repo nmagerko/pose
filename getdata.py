@@ -1,8 +1,7 @@
 ###
 # Using the depth and RGB data provided from the kinect,
-# this program outputs each frame into a file which 
-# separates frames by a !!! character pattern, and 
-# the depth/rgb values by a $$$ character pattern.
+# this program outputs each frame into a file that contains
+# the pickled data
 #
 # WARNING: this program will overwrite any file that
 # is given as the output name
@@ -14,12 +13,15 @@ from freenect import sync_get_depth as get_depth, sync_get_video as get_video
 import cv  
 import numpy as np
 import sys
+import pickle
+
+
   
 filename = sys.argv[1]
+data = []
 
 def getData():
-    global depth, rgb, data 
-    data = ""
+    global depth, rgb
 
     i = 0
     #for the first ten frames
@@ -27,7 +29,8 @@ def getData():
         # Get a fresh frame
 		(depth,_), (rgb,_) = get_depth(), get_video()
 
-		data = data + str(depth) + " \n $$$ \n" + str(rgb) + "\n !!! \n"
+                data.append([depth, rgb])
+		#data = data + str(depth) + " \n $$$ \n" + str(rgb) + "\n !!! \n"
 
 		# Build a two panel color image
 		d3 = np.dstack((depth,depth,depth)).astype(np.uint8)
@@ -39,6 +42,9 @@ def getData():
 		i = i + 1
         
 getData()
-output = file(filename, 'w')
-output.write(data)
-output.close()
+with open (filename+'.pk', 'wb') as output:
+    pickle.dump(data, output, pickle.HIGHEST_PROTOCOL)
+
+#output = file(filename, 'w')
+#output.write(data)
+#output.close()
