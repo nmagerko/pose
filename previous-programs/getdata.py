@@ -42,7 +42,7 @@ def getData():
 		i = i + 1
         
 getData()
-with open (filename+'.pk', 'wb') as output:
+with open (filename +'.pk', 'wb') as output:
     pickle.dump(data, output, pickle.HIGHEST_PROTOCOL)
 
 #output = file(filename, 'w')

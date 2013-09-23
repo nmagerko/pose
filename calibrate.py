@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 import cv2.cv as cv
+import time
 
 dims = (9, 6) 					# 9x6 chessboard
-boards = 8						# number of boards to be collected
+boards = 45						# number of boards to be collected
 npoints = dims[0] * dims[1]		# Number of points on chessboard
 capture = cv.CaptureFromCAM(1)	# Capture an image
 primaryWarning = False			# If the first warning has been issued
@@ -27,7 +28,7 @@ cv.NamedWindow("Calibration", cv.CV_WINDOW_AUTOSIZE)
 blank_path = "images/blank.png"
 blank_img = cv.LoadImage(blank_path)
 cv.ShowImage("Calibration", blank_img)
-cv.WaitKey(25)
+cv.WaitKey(20)
 
 while successes < boards:
 	# Get a frame while we have less than 8 successes
@@ -45,7 +46,7 @@ while successes < boards:
 		# Display the image with the corners shown
 		cv.DrawChessboardCorners(image, dims, corners, found)
 		cv.ShowImage("Calibration", image)
-		cv.WaitKey(25)
+		cv.WaitKey(20)
 
 		# Number of corners
 		ncorners = len(corners)
@@ -69,7 +70,7 @@ while successes < boards:
 	else:
 		if primaryWarning == False:
 			primaryWarning = True
-			print("Checkerboard not found (yet)")
+			print("Checkerboard not found (yet) \n")
 			warningDisplayed = True
 
 		elif warningDisplayed == True:
@@ -83,7 +84,7 @@ while successes < boards:
 
 cv.DestroyWindow("Calibration")
 
-print("All matricies created, starting calibration...")
+print("All frames found. Starting calibration...")
 
 # Prepare new matricies to assign to viewCount
 objectPoints2 = cv.CreateMat(successes*npoints, 3, cv.CV_32FC1)
@@ -105,50 +106,47 @@ cv.Set2D(intrinsics, 0, 0, 1.0)
 cv.Set2D(intrinsics, 1, 1, 1.0)
 
 # Rotation and translation
-rcv = cv.CreateMat(npoints, 3, cv.CV_32FC1)
-tcv = cv.CreateMat(npoints, 3, cv.CV_32FC1)
+rcv = cv.CreateMat(boards, 3, cv.CV_32FC1)
+tcv = cv.CreateMat(boards, 3, cv.CV_32FC1)
 
-print("Checking camera calibration...")
+print("Finished. Checking camera calibration... (This might take a while) \n")
 
 # Try to calibrate the camera
-intrinsic, distortionOutput = cv.CalibrateCamera2(objectPoints2, imagePoints2, points2, cv.GetSize(image), intrinsics, distortionOutput, rcv, tcv, flags=0)
+cv.CalibrateCamera2(objectPoints2, imagePoints2, points2, cv.GetSize(image), intrinsics, distortionOutput, rcv, tcv, flags=0)
 
 print("OK - Saving...")
 
 # Store results in XML files
-cv.Save("intrinsics.xml", intrinsics)
-cv.Save("distortion.xml", distortionOutput)
+cv.Save("output/intrinsics.xml", intrinsics)
+cv.Save("output/distortion.xml", distortionOutput)
 
 # Loading from XML files
-intrinsic = cv.Load("intrinsics.xml")
-distortion = cv.Load("distortion.xml")
-print " Saved. Reloaded all distortion parameters"
+intrinsic = cv.Load("output/intrinsics.xml")
+distortion = cv.Load("output/distortion.xml")
+print "Saved. Reloaded all distortion parameters successfully \n"
 
-mapx = cv.CreateImage( cv.GetSize(image), cv.IPL_DEPTH_32F, 1 );
-mapy = cv.CreateImage( cv.GetSize(image), cv.IPL_DEPTH_32F, 1 );
+mapx = cv.CreateImage(cv.GetSize(image), cv.IPL_DEPTH_32F, 1 );
+mapy = cv.CreateImage(cv.GetSize(image), cv.IPL_DEPTH_32F, 1 );
 cv.InitUndistortMap(intrinsic,distortion,mapx,mapy)
 cv.NamedWindow("Undistorted")
 
-print("All mapping has been completed")
-print("Please wait, camera switching on...")
-time.sleep(8)
+print("Mapping complete")
+print("Please wait, camera switching on... \n")
+time.sleep(1)
 
 print("Camera online")
-while(1):
+while(2):
 	image=cv.QueryFrame(capture)
 	t = cv.CloneImage(image);
-	cv.ShowImage( "Calibration", image )
+	cv.ShowImage( "Original View", image )
 	cv.Remap( t, image, mapx, mapy )
-	cv.ShowImage("Undistort", image)
+	cv.ShowImage("Undistorted View", image)
 	c = cv.WaitKey(33)
-	if(c == 1048688):		# Enter 'p' key to pause for some time
+	if (c == 1048688):		# Enter 'p' key to pause for some time
 		cv.WaitKey(2000)
 	elif c==1048603:		# Enter esc key to exit
 		break
 
-print("Program closed")
-	
-
-print("Calibration complete")
+print("Program closed - calibration complete")
 
 
