@@ -8,57 +8,62 @@ capture = cv.CaptureFromCAM(1)	# Capture an image
 primaryWarning = False			# If the first warning has been issued
 warningDisplayed = False		# If the normal warning has been issued
 successes = 0					# Number of successful collections
-intrinsics = cv.CreateMat(3, 3, cv.CV_64FC1)
-distortion = cv.CreateMat(4, 1, cv.CV_64FC1)
+
+# Points of object from 3D image
+objectPoints = cv.CreateMat(boards*npoints, 3, cv.CV_32FC1)
+# Points of object in 2D image
+imagePoints = cv.CreateMat(boards*npoints, 2, cv.CV_32FC1)
+# Points on the board
+points = cv.CreateMat(boards, 1, cv.CV_32FC1)
+# The 3x3 intrinsic matrix
+intrinsics = cv.CreateMat(3, 3, cv.CV_32FC1)
+# Distortion coefficient
+distortionOutput = cv.CreateMat(, 1, cv.CV_32FC1)
 
 # Make a general-purpose frame
 cv.NamedWindow("Calibration", cv.CV_WINDOW_AUTOSIZE)
 
-# Load the blank and checkmark to display later
+# Load the blank
 blank_path = "images/blank.png"
 blank_img = cv.LoadImage(blank_path)
 cv.ShowImage("Calibration", blank_img)
-cv.WaitKey(75)
+cv.WaitKey(25)
 
 while successes < boards:
 	# Get a frame while we have less than 8 successes
-	frame = cv.QueryFrame(capture)
+	image = cv.QueryFrame(capture)
+	# Create a grayscale image
+	grayImage = cv.CreateImage(cv.GetSize(image), 8, 1)
+	cv.CvtColor(image, grayImage, cv.CV_BGR2GRAY)
 	# Attempt to find the chessboard corners
-	found, points=cv.FindChessboardCorners(frame,dims,cv.CV_CALIB_CB_ADAPTIVE_THRESH)
+	found, corners=cv.FindChessboardCorners(grayImage,dims,cv.CV_CALIB_CB_ADAPTIVE_THRESH)
+	# Find the corners
+	corners = cv.FindCornerSubPix(grayImage, corners, (11, 11), (-1,-1), (cv.CV_TERMCRIT_EPS+cv.CV_TERMCRIT_ITER,30,0.1))	
+	
+	# If the chessboard was found
 	if found != 0:
-		successes = successes + 1
-	### Jason,
-	### This is the portion that we do not understand
-	### Some of it is syntactically incorrect, and we could not
-	### correct it because we do not understand what is supposed
-	### to be happening here. I have commented in our best guesses
-	### 	source: http://www.neuroforge.co.uk/index.php/camera-calibration
+		# Display the image with the corners shown
+		cv.DrawChessboardCorners(image, dims, corners, found)
+		cv.ShowImage("Calibration", image)
+		cv.WaitKey(25)
 
-		# Model points
-		#opts = cv.CreateMat(nimages * npoints, 3, cv.CV_32FC1)
-		# Puts all model points into matrix
-		#ipts = cv.CreateMat(opts * (npoints*1.0), 2, cv.CV_32FC1)
-		# Unknown
-		#npts = cv.CreateMat(nimages, 1, cv.CV_32SC1)
-
-		#cv.SetZero(intrinsics)
-		#cv.SetZero(distortion)
-
-		#cv.SetZero(intrinsics2)
-		#cv.SetZero(distortion2)
+		# Number of corners
+		ncorners = len(corners)
 		
-		#size=cv.GetSize(frame)
-		#cv.CalibrateCamera2(opts, ipts, npts, size,intrinsics, distortion, cv.CreateMat(points), 3, cv.CV_32FC1,cv.CreateMat(lenpoints), 3, cv.CV_32FC1,flags = 0)
-
-		#mapx = cv.CreateImage((mat_w,mat_h), cv.IPL_DEPTH_32F, 1)
-		#mapy = cv.CreateImage((mat_w,mat_h), cv.IPL_DEPTH_32F, 1)
-		#cv.InitUndistortMap(intrinsics, distortion, mapx, mapy)
-		#r = cv.CloneImage(img)
-		#cv.Remap(img, r, mapx, mapy)
-
-		cv.DrawChessboardCorners(frame, dims, points, found)
-		cv.ShowImage("Calibration", frame)
-		cv.WaitKey(75)
+		# If the amount of corners is correct (good image)
+		if ncorners == npoints:
+			print("Found frame {0}".format(successes+1))
+			step = successes*npoints
+			for j in range(npoints):
+				# Assign points to their respective matrix
+				cv.Set2D(imagePoints, step, 0, corners[j][0])
+				cv.Set2D(imagePoints, step, 1, corners[j][1])
+				cv.Set2D(objectPoints, step, 0, float(j)/float(dims[0]))
+				cv.Set2D(objectPoints, step, 1, float(j)%float(dims[0]))
+				cv.Set2D(objectPoints, step, 2, 0.0)
+				step = step + 1
+			cv.Set2D(points, successes, 0, npoints)
+			successes = successes + 1		
 
 		warningDisplayed = False
 	else:
@@ -77,6 +82,72 @@ while successes < boards:
 		cv.WaitKey(75)
 
 cv.DestroyWindow("Calibration")
+
+print("All matricies created, starting calibration...")
+
+# Prepare new matricies to assign to viewCount
+objectPoints2 = cv.CreateMat(successes*npoints, 3, cv.CV_32FC1)
+imagePoints2 = cv.CreateMat(successes*npoints, 2, cv.CV_32FC1)
+points2 = cv.CreateMat(successes, 1, cv.CV_32SC1)
+
+# Assign points to their respective matrix
+for i in range(successes*npoints):
+	cv.Set2D(imagePoints2, i, 0, cv.Get2D(imagePoints, i, 0))
+	cv.Set2D(imagePoints2, i, 1, cv.Get2D(imagePoints, i, 1))
+	cv.Set2D(objectPoints2, i, 0, cv.Get2D(objectPoints, i, 0))
+	cv.Set2D(objectPoints2, i, 1, cv.Get2D(objectPoints, i, 1))
+	cv.Set2D(objectPoints2, i, 2, cv.Get2D(objectPoints, i, 2))
+
+for i in range(successes):
+	cv.Set2D(points2, i, 0, cv.Get2D(points, i ,0))
+
+cv.Set2D(intrinsics, 0, 0, 1.0)
+cv.Set2D(intrinsics, 1, 1, 1.0)
+
+# Rotation and translation
+rcv = cv.CreateMat(npoints, 3, cv.CV_32FC1)
+tcv = cv.CreateMat(npoints, 3, cv.CV_32FC1)
+
+print("Checking camera calibration...")
+
+# Try to calibrate the camera
+intrinsic, distortionOutput = cv.CalibrateCamera2(objectPoints2, imagePoints2, points2, cv.GetSize(image), intrinsics, distortionOutput, rcv, tcv, flags=0)
+
+print("OK - Saving...")
+
+# Store results in XML files
+cv.Save("intrinsics.xml", intrinsics)
+cv.Save("distortion.xml", distortionOutput)
+
+# Loading from XML files
+intrinsic = cv.Load("intrinsics.xml")
+distortion = cv.Load("distortion.xml")
+print " Saved. Reloaded all distortion parameters"
+
+mapx = cv.CreateImage( cv.GetSize(image), cv.IPL_DEPTH_32F, 1 );
+mapy = cv.CreateImage( cv.GetSize(image), cv.IPL_DEPTH_32F, 1 );
+cv.InitUndistortMap(intrinsic,distortion,mapx,mapy)
+cv.NamedWindow("Undistorted")
+
+print("All mapping has been completed")
+print("Please wait, camera switching on...")
+time.sleep(8)
+
+print("Camera online")
+while(1):
+	image=cv.QueryFrame(capture)
+	t = cv.CloneImage(image);
+	cv.ShowImage( "Calibration", image )
+	cv.Remap( t, image, mapx, mapy )
+	cv.ShowImage("Undistort", image)
+	c = cv.WaitKey(33)
+	if(c == 1048688):		# Enter 'p' key to pause for some time
+		cv.WaitKey(2000)
+	elif c==1048603:		# Enter esc key to exit
+		break
+
+print("Program closed")
+	
 
 print("Calibration complete")
 
