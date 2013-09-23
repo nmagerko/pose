@@ -18,7 +18,7 @@ points = cv.CreateMat(boards, 1, cv.CV_32FC1)
 # The 3x3 intrinsic matrix
 intrinsics = cv.CreateMat(3, 3, cv.CV_32FC1)
 # Distortion coefficient
-distortionOutput = cv.CreateMat(, 1, cv.CV_32FC1)
+distortionOutput = cv.CreateMat(5, 1, cv.CV_32FC1)
 
 # Make a general-purpose frame
 cv.NamedWindow("Calibration", cv.CV_WINDOW_AUTOSIZE)
