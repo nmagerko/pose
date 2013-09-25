@@ -3,7 +3,7 @@ import cv2.cv as cv
 import time
 
 dims = (9, 6) 					# 9x6 chessboard
-boards = 45						# number of boards to be collected
+boards = 60						# number of boards to be collected
 npoints = dims[0] * dims[1]		# Number of points on chessboard
 capture = cv.CaptureFromCAM(1)	# Capture an image
 primaryWarning = False			# If the first warning has been issued
@@ -24,12 +24,6 @@ distortionOutput = cv.CreateMat(5, 1, cv.CV_32FC1)
 # Make a general-purpose frame
 cv.NamedWindow("Calibration", cv.CV_WINDOW_AUTOSIZE)
 
-# Load the blank
-blank_path = "images/blank.png"
-blank_img = cv.LoadImage(blank_path)
-cv.ShowImage("Calibration", blank_img)
-cv.WaitKey(20)
-
 while successes < boards:
 	# Get a frame while we have less than 8 successes
 	image = cv.QueryFrame(capture)
@@ -41,12 +35,26 @@ while successes < boards:
 	# Find the corners
 	corners = cv.FindCornerSubPix(grayImage, corners, (11, 11), (-1,-1), (cv.CV_TERMCRIT_EPS+cv.CV_TERMCRIT_ITER,30,0.1))	
 	
-	# If the chessboard was found
-	if found != 0:
+	# If the chessboard was not found
+	if found == 0:
+		cv.ShowImage("Calibration", image)
+		cv.WaitKey(5)
+		if primaryWarning == False:
+			primaryWarning = True
+			print("Checkerboard not found (yet) \n")
+			warningDisplayed = True
+
+		elif warningDisplayed == True:
+			pass
+
+		else:
+			print("Checkerboard lost")
+			warningDisplayed = True
+	else:
 		# Display the image with the corners shown
 		cv.DrawChessboardCorners(image, dims, corners, found)
 		cv.ShowImage("Calibration", image)
-		cv.WaitKey(20)
+		cv.WaitKey(5)
 
 		# Number of corners
 		ncorners = len(corners)
@@ -67,20 +75,7 @@ while successes < boards:
 			successes = successes + 1		
 
 		warningDisplayed = False
-	else:
-		if primaryWarning == False:
-			primaryWarning = True
-			print("Checkerboard not found (yet) \n")
-			warningDisplayed = True
-
-		elif warningDisplayed == True:
-			pass
-
-		else:
-			print("Checkerboard lost")
-			warningDisplayed = True
-		cv.ShowImage("Calibration", blank_img)
-		cv.WaitKey(75)
+		
 
 cv.DestroyWindow("Calibration")
 
