@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 import cv2.cv as cv
-import time
+import time, sys
 
-dims = (9, 6) 					# 9x6 chessboard
-boards = 60						# number of boards to be collected
+dims = (4, 4) 					# 9x6 chessboard
+boards = 20						# number of boards to be collected
 npoints = dims[0] * dims[1]		# Number of points on chessboard
-capture = cv.CaptureFromCAM(1)	# Capture an image
 primaryWarning = False			# If the first warning has been issued
 warningDisplayed = False		# If the normal warning has been issued
 successes = 0					# Number of successful collections
@@ -24,58 +23,64 @@ distortionOutput = cv.CreateMat(5, 1, cv.CV_32FC1)
 # Make a general-purpose frame
 cv.NamedWindow("Calibration", cv.CV_WINDOW_AUTOSIZE)
 
-while successes < boards:
-	# Get a frame while we have less than 8 successes
-	image = cv.QueryFrame(capture)
-	# Create a grayscale image
-	grayImage = cv.CreateImage(cv.GetSize(image), 8, 1)
-	cv.CvtColor(image, grayImage, cv.CV_BGR2GRAY)
-	# Attempt to find the chessboard corners
-	found, corners=cv.FindChessboardCorners(grayImage,dims,cv.CV_CALIB_CB_ADAPTIVE_THRESH)
-	# Find the corners
-	corners = cv.FindCornerSubPix(grayImage, corners, (11, 11), (-1,-1), (cv.CV_TERMCRIT_EPS+cv.CV_TERMCRIT_ITER,30,0.1))	
+while True and successes != boards:
+	k = cv.WaitKey()
+	capture = None
+	if k%256 == 32:
+		capture = cv.CaptureFromCAM(0)	# Capture an image
+		# Get a frame while we have less than 8 successes
+		image = cv.QueryFrame(capture)
+		# Create a grayscale image
+		grayImage = cv.CreateImage(cv.GetSize(image), 8, 1)
+		cv.CvtColor(image, grayImage, cv.CV_BGR2GRAY)
+		# Attempt to find the chessboard corners
+		found, corners=cv.FindChessboardCorners(grayImage,dims,cv.CV_CALIB_CB_ADAPTIVE_THRESH)
+		# Find the corners
+		corners = cv.FindCornerSubPix(grayImage, corners, (11, 11), (-1,-1), (cv.CV_TERMCRIT_EPS+cv.CV_TERMCRIT_ITER,30,0.1))	
 	
-	# If the chessboard was not found
-	if found == 0:
-		cv.ShowImage("Calibration", image)
-		cv.WaitKey(5)
-		if primaryWarning == False:
-			primaryWarning = True
-			print("Checkerboard not found (yet) \n")
-			warningDisplayed = True
+		# If the chessboard was not found
+		if found == 0:
+			cv.ShowImage("Calibration", image)
+			if primaryWarning == False:
+				primaryWarning = True
+				print("Checkerboard not found (yet) \n")
+				warningDisplayed = True
 
-		elif warningDisplayed == True:
-			pass
+			elif warningDisplayed == True:
+				pass
 
+			else:
+				print("Checkerboard lost")
+				warningDisplayed = True
 		else:
-			print("Checkerboard lost")
-			warningDisplayed = True
-	else:
-		# Display the image with the corners shown
-		cv.DrawChessboardCorners(image, dims, corners, found)
-		cv.ShowImage("Calibration", image)
-		cv.WaitKey(5)
+			# Display the image with the corners shown
+			cv.DrawChessboardCorners(image, dims, corners, found)
+			cv.SaveImage("output/calibration-images/calibration"+str(dims[0])+"x"+str(dims[1])+ "-"+str(successes+1)+".jpg", image)
+			cv.ShowImage("Calibration", image)
 
-		# Number of corners
-		ncorners = len(corners)
+			# Number of corners
+			ncorners = len(corners)
 		
-		# If the amount of corners is correct (good image)
-		if ncorners == npoints:
-			print("Found frame {0}".format(successes+1))
-			step = successes*npoints
-			for j in range(npoints):
-				# Assign points to their respective matrix
-				cv.Set2D(imagePoints, step, 0, corners[j][0])
-				cv.Set2D(imagePoints, step, 1, corners[j][1])
-				cv.Set2D(objectPoints, step, 0, float(j)/float(dims[0]))
-				cv.Set2D(objectPoints, step, 1, float(j)%float(dims[0]))
-				cv.Set2D(objectPoints, step, 2, 0.0)
-				step = step + 1
-			cv.Set2D(points, successes, 0, npoints)
-			successes = successes + 1		
+			# If the amount of corners is correct (good image)
+			if ncorners == npoints:
+				print("Found frame {0}".format(successes+1))
+				step = successes*npoints
+				for j in range(npoints):
+					# Assign points to their respective matrix
+					cv.Set2D(imagePoints, step, 0, corners[j][0])
+					cv.Set2D(imagePoints, step, 1, corners[j][1])
+					cv.Set2D(objectPoints, step, 0, float(j)/float(dims[0]))
+					cv.Set2D(objectPoints, step, 1, float(j)%float(dims[0]))
+					cv.Set2D(objectPoints, step, 2, 0.0)
+					step = step + 1
+				cv.Set2D(points, successes, 0, npoints)
+				successes = successes + 1		
 
-		warningDisplayed = False
-		
+			warningDisplayed = False
+
+	elif k%256 == 27:
+		cv.DestroyWindow("Calibration")
+		sys.exit()	
 
 cv.DestroyWindow("Calibration")
 
@@ -112,12 +117,12 @@ cv.CalibrateCamera2(objectPoints2, imagePoints2, points2, cv.GetSize(image), int
 print("OK - Saving...")
 
 # Store results in XML files
-cv.Save("output/intrinsics.xml", intrinsics)
-cv.Save("output/distortion.xml", distortionOutput)
+cv.Save("output/intrinsics" + str(dims[0])+"x"+str(dims[1]) + ".xml", intrinsics)
+cv.Save("output/distortion" + str(dims[0])+"x"+str(dims[1]) + ".xml", distortionOutput)
 
 # Loading from XML files
-intrinsic = cv.Load("output/intrinsics.xml")
-distortion = cv.Load("output/distortion.xml")
+intrinsic = cv.Load("output/intrinsics" + str(dims[0])+"x"+str(dims[1]) + ".xml")
+distortion = cv.Load("output/distortion" + str(dims[0])+"x"+str(dims[1]) + ".xml")
 print "Saved. Reloaded all distortion parameters successfully \n"
 
 mapx = cv.CreateImage(cv.GetSize(image), cv.IPL_DEPTH_32F, 1 );
