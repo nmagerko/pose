@@ -1,152 +1,94 @@
 #!/usr/bin/env python
-import cv2.cv as cv
-import time, sys
+import numpy as np
+import cv2, time, sys
 
-dims = (4, 4) 					# 9x6 chessboard
+dims = (9, 6) 					# 9x6 chessboard
 boards = 20						# number of boards to be collected
 npoints = dims[0] * dims[1]		# Number of points on chessboard
-primaryWarning = False			# If the first warning has been issued
-warningDisplayed = False		# If the normal warning has been issued
 successes = 0					# Number of successful collections
 
-# Points of object from 3D image
-objectPoints = cv.CreateMat(boards*npoints, 3, cv.CV_32FC1)
-# Points of object in 2D image
-imagePoints = cv.CreateMat(boards*npoints, 2, cv.CV_32FC1)
-# Points on the board
-points = cv.CreateMat(boards, 1, cv.CV_32FC1)
-# The 3x3 intrinsic matrix
-intrinsics = cv.CreateMat(3, 3, cv.CV_32FC1)
-# Distortion coefficient
-distortionOutput = cv.CreateMat(5, 1, cv.CV_32FC1)
+# termination criteria
+criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
-# Make a general-purpose frame
-cv.NamedWindow("Calibration", cv.CV_WINDOW_AUTOSIZE)
+# prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
+objp = np.zeros((9*6,3), np.float32)
+objp[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
 
-while True and successes != boards:
-	k = cv.WaitKey()
-	capture = None
-	if k%256 == 32:
-		capture = cv.CaptureFromCAM(0)	# Capture an image
-		# Get a frame while we have less than 8 successes
-		image = cv.QueryFrame(capture)
-		# Create a grayscale image
-		grayImage = cv.CreateImage(cv.GetSize(image), 8, 1)
-		cv.CvtColor(image, grayImage, cv.CV_BGR2GRAY)
-		# Attempt to find the chessboard corners
-		found, corners=cv.FindChessboardCorners(grayImage,dims,cv.CV_CALIB_CB_ADAPTIVE_THRESH)
-		# Find the corners
-		corners = cv.FindCornerSubPix(grayImage, corners, (11, 11), (-1,-1), (cv.CV_TERMCRIT_EPS+cv.CV_TERMCRIT_ITER,30,0.1))	
-	
-		# If the chessboard was not found
-		if found == 0:
-			cv.ShowImage("Calibration", image)
-			if primaryWarning == False:
-				primaryWarning = True
-				print("Checkerboard not found (yet) \n")
-				warningDisplayed = True
+# Arrays to store object points and image points from all the images.
+objpoints = [] # 3d point in real world space
+imgpoints = [] # 2d points in image plane.
 
-			elif warningDisplayed == True:
-				pass
-
-			else:
-				print("Checkerboard lost")
-				warningDisplayed = True
-		else:
-			# Display the image with the corners shown
-			cv.DrawChessboardCorners(image, dims, corners, found)
-			cv.SaveImage("output/calibration-images/calibration"+str(dims[0])+"x"+str(dims[1])+ "-"+str(successes+1)+".jpg", image)
-			cv.ShowImage("Calibration", image)
-
-			# Number of corners
-			ncorners = len(corners)
-		
-			# If the amount of corners is correct (good image)
-			if ncorners == npoints:
-				print("Found frame {0}".format(successes+1))
-				step = successes*npoints
-				for j in range(npoints):
-					# Assign points to their respective matrix
-					cv.Set2D(imagePoints, step, 0, corners[j][0])
-					cv.Set2D(imagePoints, step, 1, corners[j][1])
-					cv.Set2D(objectPoints, step, 0, float(j)/float(dims[0]))
-					cv.Set2D(objectPoints, step, 1, float(j)%float(dims[0]))
-					cv.Set2D(objectPoints, step, 2, 0.0)
-					step = step + 1
-				cv.Set2D(points, successes, 0, npoints)
-				successes = successes + 1		
-
-			warningDisplayed = False
-
-	elif k%256 == 27:
-		cv.DestroyWindow("Calibration")
-		sys.exit()	
-
-cv.DestroyWindow("Calibration")
-
-print("All frames found. Starting calibration...")
-
-# Prepare new matricies to assign to viewCount
-objectPoints2 = cv.CreateMat(successes*npoints, 3, cv.CV_32FC1)
-imagePoints2 = cv.CreateMat(successes*npoints, 2, cv.CV_32FC1)
-points2 = cv.CreateMat(successes, 1, cv.CV_32SC1)
-
-# Assign points to their respective matrix
-for i in range(successes*npoints):
-	cv.Set2D(imagePoints2, i, 0, cv.Get2D(imagePoints, i, 0))
-	cv.Set2D(imagePoints2, i, 1, cv.Get2D(imagePoints, i, 1))
-	cv.Set2D(objectPoints2, i, 0, cv.Get2D(objectPoints, i, 0))
-	cv.Set2D(objectPoints2, i, 1, cv.Get2D(objectPoints, i, 1))
-	cv.Set2D(objectPoints2, i, 2, cv.Get2D(objectPoints, i, 2))
-
-for i in range(successes):
-	cv.Set2D(points2, i, 0, cv.Get2D(points, i ,0))
-
-cv.Set2D(intrinsics, 0, 0, 1.0)
-cv.Set2D(intrinsics, 1, 1, 1.0)
-
-# Rotation and translation
-rcv = cv.CreateMat(boards, 3, cv.CV_32FC1)
-tcv = cv.CreateMat(boards, 3, cv.CV_32FC1)
-
-print("Finished. Checking camera calibration... (This might take a while) \n")
-
-# Try to calibrate the camera
-cv.CalibrateCamera2(objectPoints2, imagePoints2, points2, cv.GetSize(image), intrinsics, distortionOutput, rcv, tcv, flags=0)
-
-print("OK - Saving...")
-
-# Store results in XML files
-cv.Save("output/intrinsics" + str(dims[0])+"x"+str(dims[1]) + ".xml", intrinsics)
-cv.Save("output/distortion" + str(dims[0])+"x"+str(dims[1]) + ".xml", distortionOutput)
-
-# Loading from XML files
-intrinsic = cv.Load("output/intrinsics" + str(dims[0])+"x"+str(dims[1]) + ".xml")
-distortion = cv.Load("output/distortion" + str(dims[0])+"x"+str(dims[1]) + ".xml")
-print "Saved. Reloaded all distortion parameters successfully \n"
-
-mapx = cv.CreateImage(cv.GetSize(image), cv.IPL_DEPTH_32F, 1 );
-mapy = cv.CreateImage(cv.GetSize(image), cv.IPL_DEPTH_32F, 1 );
-cv.InitUndistortMap(intrinsic,distortion,mapx,mapy)
-cv.NamedWindow("Undistorted")
-
-print("Mapping complete")
-print("Please wait, camera switching on... \n")
+print("Preparing to calculate camera intrinsics...")
 time.sleep(1)
 
-print("Camera online")
-while(2):
-	image=cv.QueryFrame(capture)
-	t = cv.CloneImage(image);
-	cv.ShowImage( "Original View", image )
-	cv.Remap( t, image, mapx, mapy )
-	cv.ShowImage("Undistorted View", image)
-	c = cv.WaitKey(33)
-	if (c == 1048688):		# Enter 'p' key to pause for some time
-		cv.WaitKey(2000)
-	elif c==1048603:		# Enter esc key to exit
-		break
+print("Press the spacebar to collect an image")
 
-print("Program closed - calibration complete")
+# Make a general-purpose frame
+cv2.namedWindow('Calibration')
 
+while True and successes != boards:
+	k = cv2.waitKey()
+	capture = None
 
+	if k%256 == 32:
+		# Capture an image
+		capture = cv2.VideoCapture(1)
+		# Get a frame while we have less than 8 successes
+		_, image = capture.read()
+		# Create a grayscale image
+		gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+		# Attempt to find the chessboard corners
+		ret, corners = cv2.findChessboardCorners(gray, dims)
+
+		# If found, add object points, image points (after refining them)
+		if ret:
+			print("Found frame {0}".format(successes+1))
+			objpoints.append(objp)
+
+			cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
+			imgpoints.append(corners)
+
+	        # Draw and display the corners
+			cv2.drawChessboardCorners(image, dims, corners, True)
+			cv2.imwrite("output/calibration-images/calibration"+str(dims[0])+"x"+str(dims[1])+ "-"+str(successes+1)+".jpg", image)
+			cv2.imshow('Calibration', image)
+			successes += 1
+		else:
+			cv2.imshow('Calibration', image)
+	elif k%256 == 27:
+		cv2.destroyAllWindows()
+		sys.exit()	
+
+cv2.destroyAllWindows()
+print("All frames found. Starting calibration....")
+
+ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+
+img = cv2.imread("output/calibration-images/calibration"+str(dims[0])+"x"+str(dims[1])+"-1.jpg")
+h,  w = img.shape[:2]
+newcameramtx, roi=cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+
+np.savetxt("output/intrinsics" + str(dims[0])+"x"+str(dims[1]) + ".txt", newcameramtx)
+np.savetxt("output/distortion" + str(dims[0])+"x"+str(dims[1]) + ".txt", dist)
+
+print("Calibration complete. Intrinisics and distortion saved to output directory")
+# print("Starting mapping and displaying undistorted view...")
+
+# cv2.namedWindow('Undistorted')
+
+# # undistort
+# mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
+# while(2):
+# 	capture = cv2.VideoCapture(1)
+# 	_, image = capture.read()
+# 	image = cv2.remap(image,mapx,mapy,cv2.INTER_LINEAR)
+# 	cv2.imshow("Undistorted", image)
+
+# 	c = cv2.waitKey()
+# 	if (c%256 == 112):		# Enter 'p' key to pause for some time
+# 		cv.WaitKey(2000)
+# 	elif c%256 == 27:		# Enter esc key to exit
+# 		break
+
+print("Exiting")
+sys.exit()
