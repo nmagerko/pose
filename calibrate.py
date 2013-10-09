@@ -2,6 +2,9 @@
 import numpy as np
 import cv2, time, sys
 
+# Modified from: https://opencv-python-tutroals.readthedocs.org/en/latest/py_tutorials/py_calib3d/py_calibration/py_calibration.html
+# Data checked with http://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
+
 dims = (9, 6) 					# 9x6 chessboard
 boards = 20						# number of boards to be collected
 npoints = dims[0] * dims[1]		# Number of points on chessboard

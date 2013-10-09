@@ -1,102 +1,113 @@
 #!/usr/bin/env python
-import cv2.cv as cv
-import time, sys
+import numpy as np
+import cv2, time, sys
+from numpy import linalg
 
 dims = (9, 6) 					# 9x6 chessboard
-boards = 20						# number of boards to be collected
+boards = 1						# number of boards to be collected
 npoints = dims[0] * dims[1]		# Number of points on chessboard
 successes = 0					# Number of successful collections
 
-# Points of object from 3D image
-objectPoints = cv.CreateMat(boards*npoints, 3, cv.CV_32FC1)
-# Points of object in 2D image
-imagePoints = cv.CreateMat(boards*npoints, 2, cv.CV_32FC1)
-# Points on the board
-points = cv.CreateMat(boards, 1, cv.CV_32FC1)
+def null(A, eps=1e-15):
+    u, s, vh = np.linalg.svd(A)
+    null_mask = (s <= eps)
+    null_space = np.compress(null_mask, vh, axis=0)
+    return np.transpose(null_space)
 
-#Load necessary data from file
-intrinsics = cv.Load("output/intrinsics" + str(dims[0])+"x"+str(dims[1]) + ".xml")
-distortion = cv.Load("output/distortion" + str(dims[0])+"x"+str(dims[1]) + ".xml")
-print("Reloaded all parameters successfully. Preparing to calculate extrinsics... \n")
+# termination criteria
+criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+
+# prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
+objp = np.zeros((9*6,3), np.float32)
+objp[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
+
+# Arrays to store object points and image points from all the images.
+objpoints = [] # 3d point in real world space
+imgpoints = [] # 2d points in image plane.
+
+# Rotation and translation vectors
+rvec = []
+tvec = []
+
+# Calibration output
+mtx = np.loadtxt("output/intrinsics" + str(dims[0])+"x"+str(dims[1]) + ".txt")
+dst = np.loadtxt("output/distortion" + str(dims[0])+"x"+str(dims[1]) + ".txt")
+
+print("Preparing to calculate camera extrinsics...")
 time.sleep(1)
 
 print("Press the spacebar to collect an image")
 
 # Make a general-purpose frame
-cv.NamedWindow("Calibration", cv.CV_WINDOW_AUTOSIZE)
+cv2.namedWindow('Calculate Extrinsics')
 
 while True and successes != boards:
-	k = cv.WaitKey()
+	k = cv2.waitKey()
 	capture = None
 
 	if k%256 == 32:
 		# Capture an image
-		capture = cv.CaptureFromCAM(0)
+		capture = cv2.VideoCapture(1)
 		# Get a frame while we have less than 8 successes
-		image = cv.QueryFrame(capture)
+		_, image = capture.read()
 		# Create a grayscale image
-		grayImage = cv.CreateImage(cv.GetSize(image), 8, 1)
-		cv.CvtColor(image, grayImage, cv.CV_BGR2GRAY)
+		gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 		# Attempt to find the chessboard corners
-		found, corners=cv.FindChessboardCorners(grayImage,dims,cv.CV_CALIB_CB_ADAPTIVE_THRESH)
-		# Find the corners
-		corners = cv.FindCornerSubPix(grayImage, corners, (11, 11), (-1,-1), (cv.CV_TERMCRIT_EPS+cv.CV_TERMCRIT_ITER,30,0.1))	
-	
-		# If the chessboard was not found
-		if found == 0:
-			cv.ShowImage("Calibration", image)
+		ret, corners = cv2.findChessboardCorners(gray, dims)
+
+		# If found, add object points, image points (after refining them)
+		if ret:
+			print("Found chessboard")
+			objpoints.append(objp)
+
+			cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
+			imgpoints.append(corners)
+
+	        # Draw and display the corners
+			cv2.drawChessboardCorners(image, dims, corners, True)
+ 			cv2.imshow('Calibration', image)
+			successes += 1
 		else:
-			# Display the image with the corners shown
-			cv.DrawChessboardCorners(image, dims, corners, found)
-			cv.SaveImage("output/calibration-images/calibration"+str(dims[0])+"x"+str(dims[1])+ "-"+str(successes+1)+".jpg", image)
-			cv.ShowImage("Calibration", image)
-
-			# Number of corners
-			ncorners = len(corners)
-		
-			# If the amount of corners is correct (good image)
-			if ncorners == npoints:
-				print("Found frame {0}".format(successes+1))
-				step = successes*npoints
-				for j in range(npoints):
-					# Assign points to their respective matrix
-					cv.Set2D(imagePoints, step, 0, corners[j][0])
-					cv.Set2D(imagePoints, step, 1, corners[j][1])
-					cv.Set2D(objectPoints, step, 0, float(j)/float(dims[0]))
-					cv.Set2D(objectPoints, step, 1, float(j)%float(dims[0]))
-					cv.Set2D(objectPoints, step, 2, 0.0)
-					step = step + 1
-				cv.Set2D(points, successes, 0, npoints)
-				successes = successes + 1	
-
+			cv2.imshow('Calculate Extrinsics', image)
 	elif k%256 == 27:
-		cv.DestroyWindow("Calibration")
+		cv2.destroyAllWindows()
 		sys.exit()	
 
-cv.DestroyWindow("Calibration")
+cv2.destroyAllWindows()
 
-# Prepare new matricies 
-objectPoints2 = cv.CreateMat(successes*npoints, 3, cv.CV_32FC1)
-imagePoints2 = cv.CreateMat(successes*npoints, 2, cv.CV_32FC1)
-points2 = cv.CreateMat(successes, 1, cv.CV_32SC1)
+# Create new imgpoints matrix to match shape required by solvePnP
+imgpoints2 = np.zeros(shape=(npoints, 2))
+for i in range(0, 54):
+	imgpoints2[i] = imgpoints[0][i][0]
 
-# Assign points to their respective matrix
-for i in range(successes*npoints):
-	cv.Set2D(imagePoints2, i, 0, cv.Get2D(imagePoints, i, 0))
-	cv.Set2D(imagePoints2, i, 1, cv.Get2D(imagePoints, i, 1))
-	cv.Set2D(objectPoints2, i, 0, cv.Get2D(objectPoints, i, 0))
-	cv.Set2D(objectPoints2, i, 1, cv.Get2D(objectPoints, i, 1))
-	cv.Set2D(objectPoints2, i, 2, cv.Get2D(objectPoints, i, 2))
+ret, rvec, tvec = cv2.solvePnP(np.array(objpoints[0]), imgpoints2, mtx, dst)
 
-# Rotation and translation
-rvec = cv.CreateMat(3, 1, cv.CV_32FC1)
-tvec = cv.CreateMat(3, 1, cv.CV_32FC1)
+# Calculate rotation matrix and create [R|t]
+rmtx = cv2.Rodrigues(rvec)[0]
+r_t = np.zeros(shape=(4, 4))
+for i in range(0, 4):
+	for j in range (0, 4):
+		if i < 3:
+			if j < 3:
+				r_t[i][j] = rmtx[i][j]
+			else:
+				r_t[i][j] = tvec[i]
+		else:
+			r_t[i][j] = 0
 
-cv.FindExtrinsicCameraParams2(objectPoints2, imagePoints2, intrinsics, distortion, rvec, tvec)
+nullspace = null(r_t)
+coordinates = nullspace/nullspace[3]
 
-cv.Save("rvec.xml", rvec)
-cv.Save("tvec.xml", tvec)
+if ret:
 
+	print("\n" + "Rotation")
+	print(rvec)
+	print("\n" + "Translation")
+	print(tvec)
+	print("\n" + "Coordinates:")
+	print("x: \t" + str(coordinates[0]))
+	print("y: \t" + str(coordinates[1]))
+	print("z: \t" + str(coordinates[2]))
+else:
+	print("\n" + "Failure")
 #Work on plotting points
-
-
