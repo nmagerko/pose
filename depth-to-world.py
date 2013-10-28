@@ -1,5 +1,6 @@
 import numpy as np
-import oct2py as op
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from freenect import sync_get_depth as get_depth
 
 def RawDepthToMeters(depthValue):
@@ -18,22 +19,31 @@ def DepthToWorld(x, y, mtx, depthValue):
 	resultX = float((x - cx_d) * depth * fx_d)
 	resultY = float((y - cy_d) * depth * fy_d)
 	resultZ = float(depth)
-	result = np.array([resultX, resultY, resultZ])
+	result = [resultX, resultY, resultZ]
 	return result
 
 def DepthLoop():
 	global depth
 	(depth,_) = get_depth()
 	mtx = np.loadtxt("output/intrinsics9x6.txt")
-	w = np.empty((480, 640), dtype='object')
+	x = []
+	y = []
+	z = []
+	fig = plt.figure()
+	ax = Axes3D(fig)
+
 	for i in range(0, 480):
 		for j in range(0, 640):
 			depthValue = depth[i,j]
 			if RawDepthToMeters(depthValue) > 0:
 				worldCoordinates = DepthToWorld(i, j, mtx, depthValue)
-				w[i, j] = worldCoordinates
-			else:
-				w[i, j] = [0.0, 0.0, 0.0]
-	w.tofile("output/d2w.txt", "\n")
+				x.append(worldCoordinates[0])
+				y.append(worldCoordinates[1])
+				z.append(worldCoordinates[2])
+
+	ax.scatter(x, y, z)
+	plt.show()
+	
+	#w.tofile("output/d2w.txt", "\n")
 	
 DepthLoop()
