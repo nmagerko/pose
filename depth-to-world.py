@@ -5,6 +5,7 @@ from math import tan
 import cv2
 import freenect
 import time
+import pickle
 
 dims = (9, 6) 					# 9x6 chessboard
 boards = 1						# number of boards to be collected
@@ -26,6 +27,7 @@ rvec = []
 tvec = []
 
 fig = plt.figure()
+clouds = []
 
 # Calibration output
 mtx = np.loadtxt("output/intrinsics" + str(dims[0])+"x"+str(dims[1]) + ".txt")
@@ -83,27 +85,27 @@ def DepthToWorld(x, y, depthValue):
 	result = [resultX, resultY, resultZ]
 	return result
 
-def GenerateCloud(firstPlot = True, lastPlot = False):
+def GenerateCloud():
 	print "Getting depth...",
 	(depth,_) = freenect.sync_get_depth()
 	print " \t \t \t OK"
 	print "Waiting for calibration object..."
 	rotate, translate = CalculateRT()
 	print "Rotation and translation calculated"
-	# Collects 3072 points/frame
-	worldCoordinates = np.arange(9216, dtype = np.float64).reshape(48, 64, 3)
-	for i in range(0, 480, 10):
-		for j in range(0, 640, 10):
+	# Collects 12288 points/frame
+	worldCoordinates = np.arange(36864, dtype = np.float64).reshape(96, 128, 3)
+	for i in range(0, 480, 5):
+		for j in range(0, 640, 5):
 			depthValue = depth[i,j]
 			if depthValue < 2047:
 				values = DepthToWorld(i, j, depthValue)
-				worldCoordinates[i/10, j/10, 0] = values[0]
-				worldCoordinates[i/10, j/10, 1] = values[1]
-				worldCoordinates[i/10, j/10, 2] = values[2]
+				worldCoordinates[i/5, j/5, 0] = values[0]
+				worldCoordinates[i/5, j/5, 1] = values[1]
+				worldCoordinates[i/5, j/5, 2] = values[2]
 			else:
-				worldCoordinates[i/10, j/10, 0] = 0
-				worldCoordinates[i/10, j/10, 1] = 0
-				worldCoordinates[i/10, j/10, 2] = 0
+				worldCoordinates[i/5, j/5, 0] = 0
+				worldCoordinates[i/5, j/5, 1] = 0
+				worldCoordinates[i/5, j/5, 2] = 0
 	x, y, z = [], [], []
 	for row in worldCoordinates:
 		for point in row:
@@ -112,31 +114,22 @@ def GenerateCloud(firstPlot = True, lastPlot = False):
 				x.append(float(point[0]))
 				y.append(float(point[1]))
 				z.append(float(point[2]))
-			
-	if (firstPlot):
-		ax = Axes3D(fig)
-		ax.scatter(x, y, z)
-		ax.set_autoscale_on(True)
-	else:
-		ax = Axes3D(fig)
-		# figure out how to add plot
-		#plt.subplot(x,y,z)
-		ax.set_autoscale_on(True)
-	if (lastPlot):
-		plt.show()
-	else:
-		plt.show(block=False)
 
-	return fig
+	clouds.append([x,y,z])
 
 print "\n" + "KINECT ONLINE \n"
-for i in range(0, 5):
-	if i == 4:
+for i in range(0, 1):
+	if i == 0:
 		raw_input("\n" + "Press any key to the LAST frame")
-		GenerateCloud(False, True)
+		GenerateCloud()
 	elif i > 0:
 		raw_input("Press any key to get another frame")
-		GenerateCloud(True, False)
+		GenerateCloud()
 	else:
 		raw_input("\n" + "Press any key to get the first frame")
-		GenerateCloud(False, False)
+		GenerateCloud()
+
+with open("output/clouds.asc", "w") as f:
+	for cloud in clouds:
+		for i in range(0, len(cloud[0])):
+			f.write(str(cloud[0][i]) + "," + str(cloud[1][i]) + "," + str(cloud[2][i]) + "\n")
