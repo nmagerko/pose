@@ -1,14 +1,12 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from math import tan
 import cv2
 import freenect
 import time
 import pickle
 
-dims = (9, 6) 					# 9x6 chessboard
-boards = 1						# number of boards to be collected
+dims = (9, 6) 				# 9x6 chessboard (see images directory)
+boards = 1			        # number of boards to be collected
 npoints = dims[0] * dims[1]		# Number of points on chessboard
 
 # termination criteria
@@ -18,21 +16,23 @@ criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 objp = np.zeros((9*6,3), np.float32)
 objp[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
 
-# Arrays to store object points and image points from all the images.
+# arrays to store object points and image points from all the images.
 objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
 
-# Rotation and translation vectors
+# rotation and translation vectors
 rvec = []
 tvec = []
 
 fig = plt.figure()
 clouds = []
 
-# Calibration output
+# calibration output - from file
 mtx = np.loadtxt("output/intrinsics" + str(dims[0])+"x"+str(dims[1]) + ".txt")
 dst = np.loadtxt("output/distortion" + str(dims[0])+"x"+str(dims[1]) + ".txt")
 
+# the process of calibrate.py is employed here, yet it is ported to work with libfreenect
+# as we continue to work, these comments will be cleaned-up
 def CalculateRT():
 	successes = 0					# Number of successful collections
 	while True and successes != boards:
@@ -69,6 +69,7 @@ def RawDepthToMeters(depthValue):
 	# http://pille.iwr.uni-heidelberg.de/~kinect01/doc/classdescription.html#kinectcloud-section
 	return 1/(depthValue * (-0.0030711016) + 3.3309495161)
 
+# converts the depth data from the Kinect to meters
 def DepthToWorld(x, y, depthValue):
 
 	fx_d = mtx[0,0]
@@ -85,6 +86,7 @@ def DepthToWorld(x, y, depthValue):
 	result = [resultX, resultY, resultZ]
 	return result
 
+# the main loop, combines all elements thus far to generate a point cloud
 def GenerateCloud():
 	print "Getting depth...",
 	(depth,_) = freenect.sync_get_depth()
