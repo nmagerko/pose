@@ -4,8 +4,14 @@ import cv2
 import freenect
 import time
 
+<<<<<<< HEAD
 dims = (9, 6) 					# 9x6 chessboard (see images directory)
 npoints = dims[0] * dims[1]			# Number of points on chessboard
+=======
+dims = (9, 6) 				# 9x6 chessboard (see images directory)
+boards = 1			        # number of boards to be collected
+npoints = dims[0] * dims[1]		# Number of points on chessboard
+>>>>>>> d0617d00b27d5d064b655b8fdd0539d0c2e22ed1
 
 # termination criteria
 criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -15,6 +21,13 @@ criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 objpoints = np.zeros( (np.prod(dims), 3), np.float32 )
 objpoints[:,:2] = np.indices(dims).T.reshape(-1, 2)
 
+<<<<<<< HEAD
+=======
+# arrays to store object points and image points from all the images.
+objpoints = [] # 3d point in real world space
+imgpoints = [] # 2d points in image plane.
+
+>>>>>>> d0617d00b27d5d064b655b8fdd0539d0c2e22ed1
 # rotation and translation vectors
 rvec = []
 tvec = []
@@ -23,11 +36,27 @@ tvec = []
 clouds = []
 
 # calibration output - from file
+<<<<<<< HEAD
 mtx = np.loadtxt("output/intrinsics9x6.txt")
 dst = np.loadtxt("output/distortion9x6.txt")
+=======
+mtx = np.loadtxt("output/intrinsics" + str(dims[0])+"x"+str(dims[1]) + ".txt")
+dst = np.loadtxt("output/distortion" + str(dims[0])+"x"+str(dims[1]) + ".txt")
 
 # the process of calibrate.py is employed here, yet it is ported to work with libfreenect
 # as we continue to work, these comments will be cleaned-up
+def CalculateRT():
+	successes = 0					# Number of successful collections
+	while True and successes != boards:
+		capture = None
+
+		# Capture an image
+		(image, _) = freenect.sync_get_video()
+		# Conver to grayscale
+		gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+		# Attempt to find the chessboard corners
+		ret, corners = cv2.findChessboardCorners(gray, dims)
+>>>>>>> d0617d00b27d5d064b655b8fdd0539d0c2e22ed1
 
 def CalculateRT(image):
 	# convert to grayscale
