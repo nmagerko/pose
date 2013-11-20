@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 import numpy as np
-import cv2, time, sys
+import cv2, time, sys, freenect
 
+# NOTE: This is no longer going to be used
 # Modified from: https://opencv-python-tutroals.readthedocs.org/en/latest/py_tutorials/py_calib3d/py_calibration/py_calibration.html
 # Data checked with http://vision.in.tum.de/data/datasets/rgbd-dataset/file_formats
 
 dims = (9, 6) 					# 9x6 chessboard
-boards = 20						# number of boards to be collected
+boards = 5						# number of boards to be collected
 npoints = dims[0] * dims[1]		# Number of points on chessboard
 successes = 0					# Number of successful collections
 
@@ -14,8 +15,8 @@ successes = 0					# Number of successful collections
 criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
 # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
-objp = np.zeros((9*6,3), np.float32)
-objp[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
+objectpoints = np.zeros((9*6,3), np.float32)
+objectpoints[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
 
 # Arrays to store object points and image points from all the images.
 objpoints = [] # 3d point in real world space
@@ -35,9 +36,7 @@ while True and successes != boards:
 
 	if k%256 == 32:
 		# Capture an image
-		capture = cv2.VideoCapture(1)
-		# Get a frame while we have less than 8 successes
-		_, image = capture.read()
+		(image, _) = freenect.sync_get_video()
 		# Create a grayscale image
 		gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 		# Attempt to find the chessboard corners
@@ -46,10 +45,10 @@ while True and successes != boards:
 		# If found, add object points, image points (after refining them)
 		if ret:
 			print("Found frame {0}".format(successes+1))
-			objpoints.append(objp)
+			objpoints.append(objectpoints)
 
 			cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
-			imgpoints.append(corners)
+			imgpoints.append(corners[0])
 
 	        # Draw and display the corners
 			cv2.drawChessboardCorners(image, dims, corners, True)
@@ -65,7 +64,7 @@ while True and successes != boards:
 cv2.destroyAllWindows()
 print("All frames found. Starting calibration....")
 
-ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(np.array(objectpoints), imgpoints, gray.shape[::-1],None,None)
 
 img = cv2.imread("output/calibration-images/calibration"+str(dims[0])+"x"+str(dims[1])+"-1.jpg")
 h,  w = img.shape[:2]
