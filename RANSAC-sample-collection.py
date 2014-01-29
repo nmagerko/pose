@@ -54,7 +54,8 @@ pointCloud = GenerateCloud()
 rowCount = len(pointCloud)
 columnCount = 3
 
-print "Saving to output/RANSAC.mat... \t",
+filename = raw_input("Cloud generated. Enter filename for output (e.g., RANSAC.mat): \t")
+print "Saving to output/" + filename + "... \t",
 with open("output/RANSAC.mat", "w") as f:
     f.write("# Created by Nick Magerko and Jon Reynolds\n")
     f.write("# name: cloud\n")
