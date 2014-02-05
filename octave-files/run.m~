@@ -7,7 +7,7 @@ t = max(pdist(cloud)) * 0.005;
 
 % get the first set of inliers using the transpose of the pointcloud and
 % the above threshold
-[~, ~, inliers] = ransacfitplane(transpose(cloud), t);
+[M, ~, inliers] = ransacfitplane(transpose(cloud), t);
 
 % get the outliers
 v = false(size(cloud, 1), 1);
@@ -19,14 +19,13 @@ outliers = find(~v);
 inlier_points = cloud(inliers, :);
 outlier_points = cloud(outliers, :);
 
-[u, s, v] = svd(inlier_points);
-M = v(:, 3);
-
 [x, y] = meshgrid([min(cloud(inliers, 1)), max(cloud(inliers, 1))],[min(cloud(inliers, 2)), max(cloud(inliers, 2))])
 
-z = -(x*M(1) + y*M(2))/M(3)
+% M - 4x1 array of plane coefficients in the form
+% b(1)*X + b(2)*Y +b(3)*Z + b(4) = 0 [from ransacfitplane]
+z = -(x*M(1)+y*M(2)+M(4))/M(3)
 
-mesh(z, x, y)
+mesh(x, y, z)
 hold on;
 plot3(cloud(inliers, 1), cloud(inliers, 2), cloud(inliers, 3), 'xr');
 hold off;
