@@ -1,4 +1,4 @@
-Kinect-Modeling
+POSE
 ===============
 
 As an SIR investigation, students Nick Magerko and Jon Reynolds of the Illinois Mathematics and Science Academy are working with Jason Rock of the University of Illinois at Urbana-Champagne to create a system that will produces high-quality 3D models. 
